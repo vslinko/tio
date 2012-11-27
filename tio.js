@@ -7,14 +7,15 @@ var MusicMetadata = require('musicmetadata'),
     Xspf = require('./xspf'),
     util = require('util'),
     glob = require('glob'),
-    clc = require('cli-color'),
+    nc = require('ncurses'),
     fs = require('fs');
-var dummy = function () {};
+
 
 // setup arguments
 var optimist = require('optimist')
         .usage('Usage: $0 [arguments]')
         .alias('v', 'verbose')
+        .alias('V', 'version')
         .alias('t', 'thread')
         .alias('h', 'help')
         .alias('l', 'library')
@@ -23,15 +24,75 @@ var optimist = require('optimist')
         .string('l')
         .describe('v', 'Print more information about process')
         .describe('t', 'Threads for downloading')
-        .describe('l', 'Path to your library'),
-    argv = optimist.argv,
-    verbose = argv.verbose ? console.log : dummy;
+        .describe('l', 'Path to your library')
+        .describe('V', 'Print version information and exit'),
+    argv = optimist.argv;
 
 if (argv.help) {
     optimist.showHelp();
     process.exit();
+} else if (argv.version) {
+    console.log('0.0.3');
+    process.exit();
 }
 
+
+// commander
+var commander = function (command) {
+    switch (command) {
+        case 'n':
+            playNext();
+            break;
+        case 's':
+            stop();
+            break;
+        case 'p':
+            playNextIfMuted();
+            break;
+        case 'q':
+            quit();
+    }
+};
+
+
+// ncurses
+var nowPlayingWindow = new nc.Window();
+
+var greenColor = nc.colorPair(1, nc.colors['GREEN'], nc.attrs['NORMAL']),
+    cyanColor = nc.colorPair(2, nc.colors['CYAN'] + 8, nc.attrs['NORMAL']);
+
+nowPlayingWindow.attron(greenColor);
+nc.showCursor = false;
+
+var log;
+if (argv.verbose) {
+    nowPlayingWindow.resize(nc.lines / 2, nc.cols);
+
+    var logWindow = new nc.Window(nc.lines - nowPlayingWindow.height, nc.cols, nowPlayingWindow.height, 0);
+    logWindow.attron(cyanColor);
+
+    var logBuffer = [];
+
+    log = function (str) {
+        if (logBuffer.length > logWindow.height) {
+            logBuffer.shift();
+        }
+
+        logBuffer.push(str);
+        logWindow.erase();
+
+        for (var i = 0; i < logBuffer.length; i++) {
+            logWindow.insstr(logWindow.height - i, 0, logBuffer[logBuffer.length - i - 1], nc.cols);
+        }
+
+        logWindow.refresh();
+    };
+
+    logWindow.on('inputChar', commander);
+} else {
+    log = new Function();
+    nowPlayingWindow.on('inputChar', commander);
+}
 
 // preparing
 var player = spawn('play', [
@@ -47,6 +108,7 @@ var fetchSince = new Date();
 var fetchUntil = new Date('2012-09-08');
 var downloadQueue = [];
 var currentDownloads = {};
+var quitScheduled = false;
 
 
 // actions
@@ -61,7 +123,7 @@ var syncLibrary = function () {
 
             playNextIfMuted();
         } else {
-            console.log(clc.magenta('Library is empty, waiting first track to be downloaded'));
+            log('Library is empty, waiting first track to be downloaded');
         }
     });
 };
@@ -89,32 +151,36 @@ var playNext = function () {
     currentTrack.on('end', playNext);
 
     new MusicMetadata(currentTrack).on('metadata', function (metadata) {
-        if (metadata.title) {
-            if (metadata.artist.length > 0) {
-                console.log(util.format('Playing %s', clc.green(metadata.artist + " - " + metadata.title)));
-            } else {
-                console.log(util.format('Playing %s', clc.green(metadata.title)));
-            }
-        } else {
-            console.log("Playing next track");
-        }
+        var lineNo = nowPlayingWindow.height / 2 - 1;
+
+        nowPlayingWindow.erase();
+        nowPlayingWindow.centertext(lineNo, metadata.artist.join(', '));
+        nowPlayingWindow.centertext(lineNo + 1, metadata.title);
+        nowPlayingWindow.refresh();
     });
 };
 
 var quit = function () {
-    process.stdout.write("\n");
-
-    fetchPlaylist = dummy;
-    downloadTrack = dummy;
+    quitScheduled = true;
 
     for (var key in currentDownloads) {
         var track = currentDownloads[key];
-        verbose(util.format('Removing unfinished %s %s ', clc.green(track.path), clc.magenta(track.name)));
+        log(util.format('Removing unfinished %s %s ', track.path, track.name));
         track.stream.destroy();
         fs.unlinkSync(track.path);
     }
 
-    process.exit(0);
+    var cleanupAndExit = function () {
+        nc.cleanup();
+        process.exit();
+    };
+
+    if (argv.verbose) {
+        log('Wait 3 seconds until exit');
+        setTimeout(cleanupAndExit, 3000);
+    } else {
+        cleanupAndExit();
+    }
 };
 
 
@@ -123,7 +189,7 @@ var fetchPlaylist = function () {
     var fetchNextPlaylist = function () {
         fetchSince.setDate(fetchSince.getDate() - 1);
 
-        if (fetchSince >= fetchUntil) {
+        if (fetchSince >= fetchUntil && !quitScheduled) {
             fetchPlaylist();
         }
     };
@@ -132,12 +198,12 @@ var fetchPlaylist = function () {
     var url = util.format('http://tunes.io/xspf/%s/', day);
 
     var errorCallback = function () {
-        verbose(clc.red(util.format('Unable to fetch playlist for %s', day)));
+        log(util.format('Unable to fetch playlist for %s', day));
         fetchNextPlaylist();
     };
 
     var req = http.request(url, function (res) {
-        verbose(util.format('Fetching playlist for %s', clc.green(day)));
+        log(util.format('Fetching playlist for %s', day));
 
         new Xspf(res).on('track', function (track) {
             track.name = util.format('%s - %s', track['creator'], track['title']);
@@ -162,17 +228,21 @@ var downloadTrack = function () {
         var track = downloadQueue.shift();
 
         var errorCallback = function () {
-            verbose(clc.red(util.format('Unable to download %s', track.name)));
+            log(util.format('Unable to download %s', track.name));
             fs.unlink(track.path);
             delete currentDownloads[track.path];
             downloadTrack();
         };
 
-        verbose(util.format('Trying to download %s %s', clc.green(track.name), clc.magenta(track.location)));
+        log(util.format('Trying to download %s %s', track.name, track.location));
 
         var request = track.location.slice(0, 5) == 'https' ? https.request : http.request;
         var req = request(track.location, function (res) {
-            verbose(util.format('Downloading %s', clc.green(track.name)));
+            if (quitScheduled) {
+                return;
+            }
+
+            log(util.format('Downloading %s', track.name));
 
             track.stream = fs.createWriteStream(track.path);
 
@@ -182,7 +252,7 @@ var downloadTrack = function () {
                 delete currentDownloads[track.path];
 
                 if (res.statusCode == 200) {
-                    verbose(util.format('Downloaded %s %s', clc.green(track.name), clc.magenta(track.file)));
+                    log(util.format('Downloaded %s %s', track.name, track.file));
                     library.unshift(track.path);
                 } else {
                     errorCallback();
@@ -201,25 +271,7 @@ var downloadTrack = function () {
     } else if (fetchSince >= fetchUntil) {
         setTimeout(downloadTrack, 1000);
     } else {
-        verbose(clc.magenta('No work for downloader'));
-    }
-};
-
-var commander = function (data) {
-    var command = data.toString().replace(/^\s+|\s+$/g, "").toLowerCase();
-
-    switch (command) {
-        case 'next': case 'n':
-            playNext();
-            break;
-        case 'stop': case 's':
-            stop();
-            break;
-        case 'play': case 'p':
-            playNextIfMuted();
-            break;
-        case 'exit': case 'quit': case 'q':
-            quit();
+        log('No work for downloader');
     }
 };
 
@@ -235,7 +287,5 @@ for (var i = 0; i < argv.t; i++) {
     downloadTrack();
 }
 
-process.stdin.resume();
-process.stdin.on('data', commander);
 process.on('SIGINT', quit);
 process.on('SIGTERM', quit);
