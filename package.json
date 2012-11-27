@@ -1,6 +1,6 @@
 {
     "name": "tio",
-    "version": "0.0.1",
+    "version": "0.0.2",
     "description": "tines.io console player",
     "keywords": ["tunes.io", "audio", "music", "player"],
     "homepage": "https://github.com/rithis/tio",

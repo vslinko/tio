@@ -17,9 +17,13 @@ var optimist = require('optimist')
         .alias('v', 'verbose')
         .alias('t', 'thread')
         .alias('h', 'help')
+        .alias('l', 'library')
         .default('t', 3)
+        .default('l', util.format('%s/%s', process.env['HOME'], '.tio-library'))
+        .string('l')
         .describe('v', 'Print more information about process')
-        .describe('t', 'Threads for downloading'),
+        .describe('t', 'Threads for downloading')
+        .describe('l', 'Path to your library'),
     argv = optimist.argv,
     verbose = argv.verbose ? console.log : dummy;
 
@@ -37,7 +41,7 @@ var player = spawn('play', [
     '-'
 ]);
 var library = [];
-var libraryPath = __dirname + '/library';
+var libraryPath = argv.library;
 var currentTrack = null;
 var fetchSince = new Date();
 var fetchUntil = new Date('2012-09-08');
