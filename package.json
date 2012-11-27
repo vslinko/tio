@@ -1,0 +1,32 @@
+{
+    "name": "tio",
+    "version": "0.0.1",
+    "description": "tines.io console player",
+    "keywords": ["tunes.io", "audio", "music", "player"],
+    "homepage": "https://github.com/rithis/tio",
+    "bugs": {
+        "email": "support@rithis.com",
+        "url": "https://github.com/rithis/tio/issues",
+        "wiki": "https://github.com/rithis/tio/wiki"
+    },
+    "author": {
+        "name": "Vyacheslav Slinko",
+        "email": "vyacheslav.slinko@rithis.com"
+    },
+    "main": "tio.js",
+    "bin": {
+        "tio": "tio.js"
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/rithis/tio.git"
+    },
+    "dependencies": {
+        "glob": "*",
+        "musicmetadata": "*",
+        "cli-color": "*",
+        "optimist": "*",
+        "xml-stream": "*"
+    },
+    "os": ["darwin", "linux"]
+}
