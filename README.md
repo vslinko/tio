@@ -1,7 +1,7 @@
 # tio
 
 Caching console player for [tunes.io](http://tunes.io).
-Required `sax` to be installed.
+Required `sox` to be installed.
 
 ## Installation
 
