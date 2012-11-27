@@ -32,7 +32,7 @@ if (argv.help) {
     optimist.showHelp();
     process.exit();
 } else if (argv.version) {
-    console.log('0.0.3');
+    console.log('0.0.4');
     process.exit();
 }
 
@@ -160,7 +160,7 @@ var playNext = function () {
     });
 };
 
-var quit = function () {
+var quit = function (err) {
     quitScheduled = true;
 
     for (var key in currentDownloads) {
@@ -172,7 +172,12 @@ var quit = function () {
 
     var cleanupAndExit = function () {
         nc.cleanup();
-        process.exit();
+
+        if (err) {
+            throw err;
+        } else {
+            process.exit();
+        }
     };
 
     if (argv.verbose) {
@@ -289,3 +294,4 @@ for (var i = 0; i < argv.t; i++) {
 
 process.on('SIGINT', quit);
 process.on('SIGTERM', quit);
+process.on('uncaughtException', quit);
