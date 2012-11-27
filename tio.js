@@ -151,7 +151,7 @@ var playNext = function () {
     currentTrack.on('end', playNext);
 
     new MusicMetadata(currentTrack).on('metadata', function (metadata) {
-        var lineNo = nowPlayingWindow.height / 2 - 1;
+        var lineNo = parseInt(nowPlayingWindow.height / 2 - 1);
 
         nowPlayingWindow.erase();
         nowPlayingWindow.centertext(lineNo, metadata.artist.join(', '));
