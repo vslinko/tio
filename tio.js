@@ -269,11 +269,11 @@ var downloadTrack = function () {
                 if (res.statusCode == 200) {
                     log(util.format('Downloaded %s %s', track.name, track.file));
                     library.unshift(track.path);
+                    playNextIfMuted();
                 } else {
                     errorCallback();
                 }
 
-                playNextIfMuted();
                 downloadTrack();
             });
 
