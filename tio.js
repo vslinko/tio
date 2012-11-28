@@ -20,6 +20,7 @@ var optimist = require('optimist')
         .alias('h', 'help')
         .alias('l', 'library')
         .alias('i', 'inline')
+        .alias('d', 'download')
         .default('t', 3)
         .default('l', util.format('%s/%s', process.env['HOME'], '.tio-library'))
         .string('l')
@@ -27,26 +28,22 @@ var optimist = require('optimist')
         .describe('t', 'Threads for downloading')
         .describe('l', 'Path to your library')
         .describe('V', 'Print version information and exit')
-        .describe('i', 'Use UI based on stdout, not ncurses'),
+        .describe('i', 'Use UI based on stdout, not ncurses')
+        .describe('d', 'Download tracks without playing'),
     argv = optimist.argv;
 
 if (argv.help) {
     optimist.showHelp();
     process.exit();
 } else if (argv.version) {
-    console.log('0.0.6');
+    console.log('0.1.0');
     process.exit();
 }
 
 
 // preparing
-var win = ui.factory(argv.inline, argv.verbose);
-var player = spawn('play', [
-    '--no-show-progress',
-    '--volume', '.5',
-    '--type', 'mp3',
-    '-'
-]);
+var win = ui.factory(argv.download || argv.inline, argv.download || argv.verbose);
+var player = null;
 var library = [];
 var libraryPath = argv.library;
 var currentTrack = null;
@@ -87,6 +84,15 @@ var stop = function () {
 };
 
 var playNext = function () {
+    if (!player || !player.readable) {
+        player = spawn('play', [
+            '--no-show-progress',
+            '--volume', '.5',
+            '--type', 'mp3',
+            '-'
+        ])
+    }
+
     var track = library.shift();
     library.push(track);
 
@@ -242,7 +248,12 @@ if (!fs.existsSync(libraryPath)) {
     fs.mkdirSync(libraryPath);
 }
 
-syncLibrary();
+if (argv.download) {
+    playNext = new Function();
+} else {
+    syncLibrary();
+}
+
 fetchPlaylist();
 for (var i = 0; i < argv.t; i++) {
     downloadTrack();

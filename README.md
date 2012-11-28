@@ -24,3 +24,11 @@ tio
 ```
 tio -v
 ```
+
+---
+
+Download tracks without playing
+
+```
+tio -d
+```
