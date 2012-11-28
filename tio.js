@@ -32,9 +32,27 @@ if (argv.help) {
     optimist.showHelp();
     process.exit();
 } else if (argv.version) {
-    console.log('0.0.4');
+    console.log('0.0.5');
     process.exit();
 }
+
+
+// preparing
+var player = spawn('play', [
+    '--no-show-progress',
+    '--volume', '.5',
+    '--type', 'mp3',
+    '-'
+]);
+var library = [];
+var libraryPath = argv.library;
+var currentTrack = null;
+var currentTrackMetadata = null;
+var fetchSince = new Date();
+var fetchUntil = new Date('2012-09-08');
+var downloadQueue = [];
+var currentDownloads = {};
+var quitScheduled = false;
 
 
 // commander
@@ -105,24 +123,6 @@ var redrawNowPlayingWindow = function () {
     nowPlayingWindow.centertext(lineNo + 1, currentTrackMetadata.title);
     nowPlayingWindow.refresh();
 };
-
-
-// preparing
-var player = spawn('play', [
-    '--no-show-progress',
-    '--volume', '.5',
-    '--type', 'mp3',
-    '-'
-]);
-var library = [];
-var libraryPath = argv.library;
-var currentTrack = null;
-var currentTrackMetadata = null;
-var fetchSince = new Date();
-var fetchUntil = new Date('2012-09-08');
-var downloadQueue = [];
-var currentDownloads = {};
-var quitScheduled = false;
 
 
 // actions
