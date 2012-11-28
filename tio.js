@@ -111,15 +111,12 @@ var quit = function (err) {
 
     var cleanupAndExit = function () {
         win.close();
-
-        if (err) {
-            throw err;
-        } else {
-            process.exit();
-        }
+        process.exit();
     };
 
-    if (argv.verbose) {
+    if (err) {
+        throw err;
+    } else if (argv.verbose) {
         win.log('Wait 3 seconds until exit');
         setTimeout(cleanupAndExit, 3000);
     } else {
