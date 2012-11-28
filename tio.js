@@ -7,7 +7,7 @@ var MusicMetadata = require('musicmetadata'),
     Xspf = require('./xspf'),
     util = require('util'),
     glob = require('glob'),
-    nc = require('ncurses'),
+    ui = require('./ui');
     fs = require('fs');
 
 
@@ -38,6 +38,7 @@ if (argv.help) {
 
 
 // preparing
+var win = argv.verbose ? new ui.VerboseWindow() : new ui.SimpleWindow();
 var player = spawn('play', [
     '--no-show-progress',
     '--volume', '.5',
@@ -47,82 +48,11 @@ var player = spawn('play', [
 var library = [];
 var libraryPath = argv.library;
 var currentTrack = null;
-var currentTrackMetadata = null;
 var fetchSince = new Date();
 var fetchUntil = new Date('2012-09-08');
 var downloadQueue = [];
 var currentDownloads = {};
 var quitScheduled = false;
-
-
-// commander
-var commander = function (command) {
-    switch (command) {
-        case 'n':
-            playNext();
-            break;
-        case 's':
-            stop();
-            break;
-        case 'p':
-            playNextIfMuted();
-            break;
-        case 'q':
-            quit();
-    }
-};
-
-
-// ncurses
-var nowPlayingWindow = new nc.Window();
-
-var greenColor = nc.colorPair(1, nc.colors['GREEN'], nc.attrs['NORMAL']),
-    cyanColor = nc.colorPair(2, nc.colors['CYAN'] + 8, nc.attrs['NORMAL']);
-
-nowPlayingWindow.attron(greenColor);
-nc.showCursor = false;
-
-var log;
-if (argv.verbose) {
-    nowPlayingWindow.resize(nc.lines / 2, nc.cols);
-
-    var logWindow = new nc.Window(nc.lines - nowPlayingWindow.height, nc.cols, nowPlayingWindow.height, 0);
-    logWindow.attron(cyanColor);
-
-    var logBuffer = [];
-
-    log = function (str) {
-        if (logBuffer.length > logWindow.height) {
-            logBuffer.shift();
-        }
-
-        logBuffer.push(str);
-    };
-
-    var redrawLogWindow = function () {
-        logWindow.erase();
-
-        for (var i = 0; i < logBuffer.length; i++) {
-            logWindow.insstr(logWindow.height - i, 0, logBuffer[logBuffer.length - i - 1], nc.cols);
-        }
-
-        logWindow.refresh();
-    };
-
-    logWindow.on('inputChar', commander);
-} else {
-    log = new Function();
-    nowPlayingWindow.on('inputChar', commander);
-}
-
-var redrawNowPlayingWindow = function () {
-    var lineNo = parseInt(nowPlayingWindow.height / 2 - 1);
-
-    nowPlayingWindow.erase();
-    nowPlayingWindow.centertext(lineNo, currentTrackMetadata.artist.join(', '));
-    nowPlayingWindow.centertext(lineNo + 1, currentTrackMetadata.title);
-    nowPlayingWindow.refresh();
-};
 
 
 // actions
@@ -137,7 +67,7 @@ var syncLibrary = function () {
 
             playNextIfMuted();
         } else {
-            log('Library is empty, waiting first track to be downloaded');
+            win.log('Library is empty, waiting first track to be downloaded');
         }
     });
 };
@@ -165,8 +95,7 @@ var playNext = function () {
     currentTrack.on('end', playNext);
 
     new MusicMetadata(currentTrack).on('metadata', function (metadata) {
-        currentTrackMetadata = metadata;
-        redrawNowPlayingWindow();
+        win.updateCurrentTrackMetadata(metadata);
     });
 };
 
@@ -175,13 +104,13 @@ var quit = function (err) {
 
     for (var key in currentDownloads) {
         var track = currentDownloads[key];
-        log(util.format('Removing unfinished %s %s ', track.path, track.name));
+        win.log(util.format('Removing unfinished %s %s ', track.path, track.name));
         track.stream.destroy();
         fs.unlinkSync(track.path);
     }
 
     var cleanupAndExit = function () {
-        nc.cleanup();
+        win.close();
 
         if (err) {
             throw err;
@@ -191,7 +120,7 @@ var quit = function (err) {
     };
 
     if (argv.verbose) {
-        log('Wait 3 seconds until exit');
+        win.log('Wait 3 seconds until exit');
         setTimeout(cleanupAndExit, 3000);
     } else {
         cleanupAndExit();
@@ -213,12 +142,12 @@ var fetchPlaylist = function () {
     var url = util.format('http://tunes.io/xspf/%s/', day);
 
     var errorCallback = function () {
-        log(util.format('Unable to fetch playlist for %s', day));
+        win.log(util.format('Unable to fetch playlist for %s', day));
         fetchNextPlaylist();
     };
 
     var req = http.request(url, function (res) {
-        log(util.format('Fetching playlist for %s', day));
+        win.log(util.format('Fetching playlist for %s', day));
 
         new Xspf(res).on('track', function (track) {
             track.name = util.format('%s - %s', track['creator'], track['title']);
@@ -243,13 +172,13 @@ var downloadTrack = function () {
         var track = downloadQueue.shift();
 
         var errorCallback = function () {
-            log(util.format('Unable to download %s', track.name));
+            win.log(util.format('Unable to download %s', track.name));
             fs.unlink(track.path);
             delete currentDownloads[track.path];
             downloadTrack();
         };
 
-        log(util.format('Trying to download %s %s', track.name, track.location));
+        win.log(util.format('Trying to download %s %s', track.name, track.location));
 
         var request = track.location.slice(0, 5) == 'https' ? https.request : http.request;
         var req = request(track.location, function (res) {
@@ -257,7 +186,7 @@ var downloadTrack = function () {
                 return;
             }
 
-            log(util.format('Downloading %s', track.name));
+            win.log(util.format('Downloading %s', track.name));
 
             track.stream = fs.createWriteStream(track.path);
 
@@ -267,7 +196,7 @@ var downloadTrack = function () {
                 delete currentDownloads[track.path];
 
                 if (res.statusCode == 200) {
-                    log(util.format('Downloaded %s %s', track.name, track.file));
+                    win.log(util.format('Downloaded %s %s', track.name, track.file));
                     library.unshift(track.path);
                     playNextIfMuted();
                 } else {
@@ -286,9 +215,27 @@ var downloadTrack = function () {
     } else if (fetchSince >= fetchUntil) {
         setTimeout(downloadTrack, 1000);
     } else {
-        log('No work for downloader');
+        win.log('No work for downloader');
     }
 };
+
+
+// commander
+win.on('inputChar', function (command) {
+    switch (command) {
+        case 'n':
+            playNext();
+            break;
+        case 's':
+            stop();
+            break;
+        case 'p':
+            playNextIfMuted();
+            break;
+        case 'q':
+            quit();
+    }
+});
 
 
 // initialization
@@ -302,18 +249,6 @@ for (var i = 0; i < argv.t; i++) {
     downloadTrack();
 }
 
-process.on('SIGWINCH', function () {
-    if (argv.verbose) {
-        nowPlayingWindow.resize(nc.lines / 2, nc.cols);
-        logWindow.resize(nc.lines - nowPlayingWindow.height, nc.cols);
-        logWindow.move(nowPlayingWindow.height, 0);
-        redrawNowPlayingWindow();
-        redrawLogWindow();
-    } else {
-        nowPlayingWindow.resize(nc.lines, nc.cols);
-        redrawNowPlayingWindow();
-    }
-});
 process.on('SIGINT', quit);
 process.on('SIGTERM', quit);
 process.on('uncaughtException', quit);
