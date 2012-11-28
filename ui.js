@@ -6,7 +6,6 @@ var EventEmitter = require('events').EventEmitter,
 // SimpleUI
 var SimpleUI = function () {
     EventEmitter.call(this);
-    this.registerCommandEmitter();
 };
 
 util.inherits(SimpleUI, EventEmitter);
@@ -42,14 +41,13 @@ VerboseUI.prototype.log = function (str) {
 
 // SimpleWindowUI
 var SimpleWindowUI = function () {
-    EventEmitter.call(this);
+    SimpleUI.call(this);
     var self = this;
 
     this.nowPlayingWindow = new nc.Window();
     this.nowPlayingWindow.attron(nc.colorPair(1, nc.colors['GREEN'], nc.attrs['NORMAL']));
     this.currentTrackMetadata = null;
     nc.showCursor = false;
-    this.registerCommandEmitter();
 
     process.on('SIGWINCH', function () {
         self.resize();
@@ -107,7 +105,7 @@ var VerboseWindowUI = function () {
 util.inherits(VerboseWindowUI, SimpleWindowUI);
 
 VerboseWindowUI.prototype.registerCommandEmitter = function () {
-    this.super_.registerCommandEmitter();
+    SimpleWindowUI.prototype.registerCommandEmitter.call(this);
     var self = this;
 
     this.logWindow.on('inputChar', function (c) {

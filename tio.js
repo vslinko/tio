@@ -36,7 +36,7 @@ if (argv.help) {
     optimist.showHelp();
     process.exit();
 } else if (argv.version) {
-    console.log('0.1.0');
+    console.log('0.1.1');
     process.exit();
 }
 
@@ -259,6 +259,7 @@ for (var i = 0; i < argv.t; i++) {
     downloadTrack();
 }
 
+win.registerCommandEmitter();
 process.on('SIGINT', quit);
 process.on('SIGTERM', quit);
 process.on('uncaughtException', quit);
