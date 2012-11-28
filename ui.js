@@ -3,34 +3,75 @@ var EventEmitter = require('events').EventEmitter,
     nc = require('ncurses');
 
 
-// SimpleWindow
-var SimpleWindow = function () {
+// SimpleUI
+var SimpleUI = function () {
     EventEmitter.call(this);
+    this.registerCommandEmitter();
+};
 
+util.inherits(SimpleUI, EventEmitter);
+
+SimpleUI.prototype.registerCommandEmitter = function () {
+    var self = this;
+
+    process.stdin.resume();
+    process.stdin.on('data', function (data) {
+        self.emit('command', data.toString().replace(/^\s+|\s+$/g, "").toLowerCase());
+    });
+};
+
+SimpleUI.prototype.updateCurrentTrackMetadata = function (metadata) {
+    console.log(util.format('Playing %s - %s', metadata.artist.join(', '), metadata.title))
+};
+
+SimpleUI.prototype.log = function () {};
+SimpleUI.prototype.close = function () {};
+
+
+// VerboseUI
+var VerboseUI = function () {
+    SimpleUI.call(this);
+};
+
+util.inherits(VerboseUI, SimpleUI);
+
+VerboseUI.prototype.log = function (str) {
+    console.log(str);
+};
+
+
+// SimpleWindowUI
+var SimpleWindowUI = function () {
+    EventEmitter.call(this);
     var self = this;
 
     this.nowPlayingWindow = new nc.Window();
     this.nowPlayingWindow.attron(nc.colorPair(1, nc.colors['GREEN'], nc.attrs['NORMAL']));
-    this.nowPlayingWindow.on('inputChar', function (c, code, isKey) {
-        self.emit('inputChar', c, code, isKey);
-    });
     this.currentTrackMetadata = null;
-
     nc.showCursor = false;
+    this.registerCommandEmitter();
 
     process.on('SIGWINCH', function () {
         self.resize();
     });
 };
 
-util.inherits(SimpleWindow, EventEmitter);
+util.inherits(SimpleWindowUI, SimpleUI);
 
-SimpleWindow.prototype.updateCurrentTrackMetadata = function (currentTrackMetadata) {
+SimpleWindowUI.prototype.registerCommandEmitter = function () {
+    var self = this;
+
+    this.nowPlayingWindow.on('inputChar', function (c) {
+        self.emit('command', c);
+    });
+};
+
+SimpleWindowUI.prototype.updateCurrentTrackMetadata = function (currentTrackMetadata) {
     this.currentTrackMetadata = currentTrackMetadata;
     this.redrawNowPlayingWindow();
 };
 
-SimpleWindow.prototype.redrawNowPlayingWindow = function () {
+SimpleWindowUI.prototype.redrawNowPlayingWindow = function () {
     if (this.currentTrackMetadata) {
         var lineNo = parseInt(this.nowPlayingWindow.height / 2 - 1);
 
@@ -41,38 +82,40 @@ SimpleWindow.prototype.redrawNowPlayingWindow = function () {
     }
 };
 
-SimpleWindow.prototype.log = function () {};
-
-SimpleWindow.prototype.resize = function () {
+SimpleWindowUI.prototype.resize = function () {
     this.nowPlayingWindow.resize(nc.lines, nc.cols);
     this.redrawNowPlayingWindow();
 };
 
-SimpleWindow.prototype.close = function () {
+SimpleWindowUI.prototype.close = function () {
     nc.cleanup();
 };
 
 
-// VerboseWindow
-var VerboseWindow = function () {
-    SimpleWindow.call(this);
-
-    var self = this;
+// VerboseWindowUI
+var VerboseWindowUI = function () {
+    SimpleWindowUI.call(this);
 
     this.nowPlayingWindow.resize(parseInt(nc.lines / 2), nc.cols);
 
     this.logWindow = new nc.Window(nc.lines - this.nowPlayingWindow.height, nc.cols, this.nowPlayingWindow.height, 0);
     this.logWindow.attron(nc.colorPair(2, nc.colors['CYAN'] + 8, nc.attrs['NORMAL']));
-    this.logWindow.on('inputChar', function (c, code, isKey) {
-        self.emit('inputChar', c, code, isKey);
-    });
 
     this.logBuffer = [];
 };
 
-util.inherits(VerboseWindow, SimpleWindow);
+util.inherits(VerboseWindowUI, SimpleWindowUI);
 
-VerboseWindow.prototype.log = function (str) {
+VerboseWindowUI.prototype.registerCommandEmitter = function () {
+    this.super_.registerCommandEmitter();
+    var self = this;
+
+    this.logWindow.on('inputChar', function (c) {
+        self.emit('command', c);
+    });
+};
+
+VerboseWindowUI.prototype.log = function (str) {
     if (this.logBuffer.length > this.logWindow.height) {
         this.logBuffer.shift();
     }
@@ -81,7 +124,7 @@ VerboseWindow.prototype.log = function (str) {
     this.redrawLogWindow();
 };
 
-VerboseWindow.prototype.redrawLogWindow = function () {
+VerboseWindowUI.prototype.redrawLogWindow = function () {
     this.logWindow.erase();
 
     for (var i = 0; i < this.logBuffer.length; i++) {
@@ -91,7 +134,7 @@ VerboseWindow.prototype.redrawLogWindow = function () {
     this.logWindow.refresh();
 };
 
-VerboseWindow.prototype.resize = function () {
+VerboseWindowUI.prototype.resize = function () {
     this.nowPlayingWindow.resize(parseInt(nc.lines / 2), nc.cols);
 
     this.logWindow.resize(nc.lines - this.nowPlayingWindow.height, nc.cols);
@@ -101,5 +144,10 @@ VerboseWindow.prototype.resize = function () {
     this.redrawLogWindow();
 };
 
-exports.SimpleWindow = SimpleWindow;
-exports.VerboseWindow = VerboseWindow;
+exports.factory = function (inline, verbose) {
+    if (inline) {
+        return verbose ? new VerboseUI() : new SimpleUI();
+    } else {
+        return verbose ? new VerboseWindowUI() : new SimpleWindowUI();
+    }
+};

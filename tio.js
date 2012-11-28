@@ -19,26 +19,28 @@ var optimist = require('optimist')
         .alias('t', 'thread')
         .alias('h', 'help')
         .alias('l', 'library')
+        .alias('i', 'inline')
         .default('t', 3)
         .default('l', util.format('%s/%s', process.env['HOME'], '.tio-library'))
         .string('l')
         .describe('v', 'Print more information about process')
         .describe('t', 'Threads for downloading')
         .describe('l', 'Path to your library')
-        .describe('V', 'Print version information and exit'),
+        .describe('V', 'Print version information and exit')
+        .describe('i', 'Use UI based on stdout, not ncurses'),
     argv = optimist.argv;
 
 if (argv.help) {
     optimist.showHelp();
     process.exit();
 } else if (argv.version) {
-    console.log('0.0.5');
+    console.log('0.0.6');
     process.exit();
 }
 
 
 // preparing
-var win = argv.verbose ? new ui.VerboseWindow() : new ui.SimpleWindow();
+var win = ui.factory(argv.inline, argv.verbose);
 var player = spawn('play', [
     '--no-show-progress',
     '--volume', '.5',
@@ -218,7 +220,7 @@ var downloadTrack = function () {
 
 
 // commander
-win.on('inputChar', function (command) {
+win.on('command', function (command) {
     switch (command) {
         case 'n':
             playNext();
