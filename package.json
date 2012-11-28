@@ -1,6 +1,6 @@
 {
     "name": "tio",
-    "version": "0.1.1",
+    "version": "0.1.2",
     "description": "tines.io console player",
     "keywords": ["tunes.io", "audio", "music", "player"],
     "homepage": "https://github.com/rithis/tio",
@@ -25,8 +25,8 @@
         "glob": "*",
         "musicmetadata": "*",
         "optimist": "*",
-        "xml-stream": "*",
-        "ncurses": "*"
+        "ncurses": "*",
+        "xspf": "*"
     },
     "os": ["darwin", "linux"]
 }

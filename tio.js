@@ -4,7 +4,7 @@ var MusicMetadata = require('musicmetadata'),
     spawn = require('child_process').spawn,
     https = require('https'),
     http = require('http'),
-    Xspf = require('./xspf'),
+    Xspf = require('xspf'),
     util = require('util'),
     glob = require('glob'),
     ui = require('./ui');
@@ -36,7 +36,7 @@ if (argv.help) {
     optimist.showHelp();
     process.exit();
 } else if (argv.version) {
-    console.log('0.1.1');
+    console.log('0.1.2');
     process.exit();
 }
 
