@@ -79,6 +79,9 @@ if (argv.verbose) {
         }
 
         logBuffer.push(str);
+    };
+
+    var redrawLogWindow = function () {
         logWindow.erase();
 
         for (var i = 0; i < logBuffer.length; i++) {
@@ -94,6 +97,16 @@ if (argv.verbose) {
     nowPlayingWindow.on('inputChar', commander);
 }
 
+var redrawNowPlayingWindow = function () {
+    var lineNo = parseInt(nowPlayingWindow.height / 2 - 1);
+
+    nowPlayingWindow.erase();
+    nowPlayingWindow.centertext(lineNo, currentTrackMetadata.artist.join(', '));
+    nowPlayingWindow.centertext(lineNo + 1, currentTrackMetadata.title);
+    nowPlayingWindow.refresh();
+};
+
+
 // preparing
 var player = spawn('play', [
     '--no-show-progress',
@@ -104,6 +117,7 @@ var player = spawn('play', [
 var library = [];
 var libraryPath = argv.library;
 var currentTrack = null;
+var currentTrackMetadata = null;
 var fetchSince = new Date();
 var fetchUntil = new Date('2012-09-08');
 var downloadQueue = [];
@@ -151,12 +165,8 @@ var playNext = function () {
     currentTrack.on('end', playNext);
 
     new MusicMetadata(currentTrack).on('metadata', function (metadata) {
-        var lineNo = parseInt(nowPlayingWindow.height / 2 - 1);
-
-        nowPlayingWindow.erase();
-        nowPlayingWindow.centertext(lineNo, metadata.artist.join(', '));
-        nowPlayingWindow.centertext(lineNo + 1, metadata.title);
-        nowPlayingWindow.refresh();
+        currentTrackMetadata = metadata;
+        redrawNowPlayingWindow();
     });
 };
 
@@ -292,6 +302,18 @@ for (var i = 0; i < argv.t; i++) {
     downloadTrack();
 }
 
+process.on('SIGWINCH', function () {
+    if (argv.verbose) {
+        nowPlayingWindow.resize(nc.lines / 2, nc.cols);
+        logWindow.resize(nc.lines - nowPlayingWindow.height, nc.cols);
+        logWindow.move(nowPlayingWindow.height, 0);
+        redrawNowPlayingWindow();
+        redrawLogWindow();
+    } else {
+        nowPlayingWindow.resize(nc.lines, nc.cols);
+        redrawNowPlayingWindow();
+    }
+});
 process.on('SIGINT', quit);
 process.on('SIGTERM', quit);
 process.on('uncaughtException', quit);
