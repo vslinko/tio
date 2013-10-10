@@ -156,7 +156,7 @@ var fetchPlaylist = function () {
 
         new Xspf(res).on('track', function (track) {
             track.name = util.format('%s - %s', track['creator'], track['title']);
-            track.file = util.format('%s.mp3', new Buffer(track.name).toString('base64'));
+            track.file = util.format('%s.mp3', new Buffer(track.name).toString('base64').replace(/\//g,'_'));
             track.path = util.format('%s/%s', libraryPath, track.file);
 
             if (!fs.existsSync(track.path)) {
